@@ -1,0 +1,982 @@
+{% extends "base.html" %}
+
+{% block title %}Dream Analytics — Dream Visualizer AI{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  /* ─── Dashboard Layout ──────────────────────────── */
+  .dash-hero {
+    padding: 6rem 2rem 2.5rem;
+    text-align: center;
+    position: relative;
+  }
+  .dash-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(96,165,250,.14) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .dash-hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    background: rgba(96,165,250,.1);
+    border: 1px solid rgba(96,165,250,.25);
+    border-radius: 2rem;
+    padding: .35rem 1rem;
+    font-size: .75rem;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #93c5fd;
+    margin-bottom: 1.5rem;
+  }
+  .dash-hero h1 {
+    font-size: clamp(2.2rem, 5vw, 3.6rem);
+    font-weight: 800;
+    background: linear-gradient(135deg, #e2d9f3 30%, #93c5fd 70%, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: .8rem;
+    line-height: 1.1;
+  }
+  .dash-hero p {
+    color: rgba(255,255,255,.5);
+    font-size: 1rem;
+    max-width: 460px;
+    margin: 0 auto 1rem;
+  }
+  .last-updated {
+    font-size: .75rem;
+    color: rgba(255,255,255,.25);
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+  }
+
+  .dash-wrap {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 2rem 5rem;
+  }
+
+  /* ─── Section Titles ────────────────────────────── */
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.35);
+    margin-bottom: 1.25rem;
+  }
+  .section-title::before {
+    content: '';
+    width: 3px;
+    height: 16px;
+    background: linear-gradient(180deg, #7c3aed, #60a5fa);
+    border-radius: 2px;
+  }
+
+  /* ─── Stat Cards ────────────────────────────────── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+  .stat-card {
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 1.25rem;
+    padding: 1.5rem 1.4rem;
+    position: relative;
+    overflow: hidden;
+    transition: transform .25s, border-color .25s, box-shadow .25s;
+    animation: fadeSlideUp .5s ease both;
+  }
+  .stat-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(255,255,255,.15);
+    box-shadow: 0 16px 40px rgba(0,0,0,.3);
+  }
+  .stat-card::after {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    background: var(--glow, rgba(139,92,246,.06));
+    pointer-events: none;
+    transition: transform .3s;
+  }
+  .stat-card:hover::after { transform: scale(1.2); }
+
+  .stat-icon {
+    width: 40px; height: 40px;
+    border-radius: .75rem;
+    background: var(--icon-bg, rgba(139,92,246,.15));
+    border: 1px solid var(--icon-border, rgba(139,92,246,.25));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+  }
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #e2d9f3;
+    line-height: 1;
+    margin-bottom: .3rem;
+    display: flex;
+    align-items: baseline;
+    gap: .25rem;
+  }
+  .stat-value .unit {
+    font-size: 1rem;
+    font-weight: 600;
+    color: rgba(255,255,255,.4);
+  }
+  .stat-label {
+    font-size: .78rem;
+    color: rgba(255,255,255,.38);
+    font-weight: 500;
+  }
+  .stat-accent {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    margin-top: .6rem;
+    font-size: .72rem;
+    color: rgba(52,211,153,.8);
+    font-weight: 600;
+  }
+
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── Chart Grid ─────────────────────────────────── */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 1.25rem;
+    margin-bottom: 2.5rem;
+  }
+  .chart-card {
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 1.25rem;
+    padding: 1.5rem;
+    animation: fadeSlideUp .5s ease both;
+  }
+  .chart-card.span-7  { grid-column: span 7; }
+  .chart-card.span-5  { grid-column: span 5; }
+  .chart-card.span-6  { grid-column: span 6; }
+  .chart-card.span-4  { grid-column: span 4; }
+  .chart-card.span-8  { grid-column: span 8; }
+  .chart-card.span-12 { grid-column: span 12; }
+
+  .chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+  .chart-title {
+    font-size: .95rem;
+    font-weight: 700;
+    color: #e2d9f3;
+  }
+  .chart-subtitle {
+    font-size: .75rem;
+    color: rgba(255,255,255,.35);
+    margin-top: .15rem;
+  }
+  .chart-legend {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    font-size: .72rem;
+    color: rgba(255,255,255,.45);
+  }
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+  .chart-wrap {
+    position: relative;
+  }
+
+  /* ─── Emotion Distribution ──────────────────────── */
+  .emotion-list {
+    display: flex;
+    flex-direction: column;
+    gap: .9rem;
+  }
+  .emotion-row {
+    display: grid;
+    grid-template-columns: 90px 1fr 36px;
+    align-items: center;
+    gap: .75rem;
+  }
+  .emotion-name {
+    font-size: .8rem;
+    color: rgba(255,255,255,.6);
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    white-space: nowrap;
+  }
+  .emo-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .emo-track {
+    height: 8px;
+    background: rgba(255,255,255,.06);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .emo-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1.2s cubic-bezier(.34,1.56,.64,1);
+    width: 0;
+  }
+  .emo-count {
+    font-size: .75rem;
+    font-weight: 700;
+    color: rgba(255,255,255,.5);
+    text-align: right;
+  }
+
+  /* ─── Symbol Cloud ───────────────────────────────── */
+  .symbol-cloud-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .6rem;
+    align-content: flex-start;
+  }
+  .symbol-bubble {
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 2rem;
+    padding: .35rem .9rem;
+    font-size: .78rem;
+    color: rgba(255,255,255,.55);
+    transition: all .2s;
+    cursor: default;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+  }
+  .symbol-bubble:hover {
+    background: rgba(139,92,246,.12);
+    border-color: rgba(139,92,246,.3);
+    color: #c4b5fd;
+  }
+  .symbol-count {
+    background: rgba(139,92,246,.15);
+    border-radius: 1rem;
+    padding: .1rem .4rem;
+    font-size: .65rem;
+    font-weight: 700;
+    color: #a78bfa;
+  }
+
+  /* ─── Mood Distribution ──────────────────────────── */
+  .mood-badges {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: .75rem;
+  }
+  .mood-item {
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: .75rem;
+    padding: .9rem;
+    text-align: center;
+    transition: all .2s;
+  }
+  .mood-item:hover {
+    background: rgba(255,255,255,.07);
+    border-color: rgba(255,255,255,.14);
+  }
+  .mood-emoji { font-size: 1.6rem; display: block; margin-bottom: .4rem; }
+  .mood-name  { font-size: .72rem; color: rgba(255,255,255,.45); margin-bottom: .25rem; }
+  .mood-count { font-size: 1.1rem; font-weight: 800; color: #e2d9f3; }
+
+  /* ─── No Data State ──────────────────────────────── */
+  .no-data {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: rgba(255,255,255,.25);
+    font-size: .85rem;
+  }
+  .no-data-icon { font-size: 2.5rem; display: block; margin-bottom: .75rem; }
+
+  /* ─── Insights Ticker ────────────────────────────── */
+  .insights-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+    flex-wrap: wrap;
+  }
+  .insight-pill {
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: .75rem;
+    padding: .7rem 1.1rem;
+    font-size: .82rem;
+    color: rgba(255,255,255,.5);
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    animation: fadeSlideUp .5s ease both;
+  }
+  .insight-pill strong { color: #e2d9f3; }
+  .insight-pill .pip {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #34d399;
+    flex-shrink: 0;
+  }
+
+  /* ─── Loading overlay ────────────────────────────── */
+  .dash-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 6rem 2rem;
+    gap: 1rem;
+    color: rgba(255,255,255,.35);
+    font-size: .9rem;
+  }
+  .spin {
+    width: 36px; height: 36px;
+    border: 2px solid rgba(139,92,246,.2);
+    border-top-color: #7c3aed;
+    border-radius: 50%;
+    animation: spin .9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── Responsive ─────────────────────────────────── */
+  @media (max-width: 900px) {
+    .chart-card.span-7, .chart-card.span-5,
+    .chart-card.span-6, .chart-card.span-4,
+    .chart-card.span-8 { grid-column: span 12; }
+    .charts-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .dash-hero { padding: 5rem 1.5rem 2rem; }
+    .dash-wrap  { padding: 0 1rem 3rem; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 380px) {
+    .stats-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero -->
+<section class="dash-hero">
+  <div class="dash-hero-eyebrow">
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><circle cx="5" cy="5" r="5"/></svg>
+    Analytics Center
+  </div>
+  <h1>Dream Intelligence</h1>
+  <p>Patterns, trends, and insights extracted from your dream universe.</p>
+  <div class="last-updated" id="lastUpdated"></div>
+</section>
+
+<!-- Loading state -->
+<div class="dash-loading" id="dashLoading">
+  <div class="spin"></div>
+  <span>Analyzing your dream patterns…</span>
+</div>
+
+<!-- Dashboard content (hidden until data loads) -->
+<div class="dash-wrap" id="dashContent" style="display:none">
+
+  <!-- Insights bar -->
+  <div class="insights-row" id="insightsRow"></div>
+
+  <!-- ── Overview Stats ── -->
+  <div class="section-title">Overview</div>
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <!-- ── Charts ── -->
+  <div class="section-title">Emotion & Mood Analysis</div>
+  <div class="charts-grid">
+
+    <!-- Emotion bar breakdown -->
+    <div class="chart-card span-5" style="animation-delay:.1s">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Emotion Distribution</div>
+          <div class="chart-subtitle">Detected across all dreams</div>
+        </div>
+      </div>
+      <div class="emotion-list" id="emotionList"></div>
+    </div>
+
+    <!-- Emotion doughnut -->
+    <div class="chart-card span-7" style="animation-delay:.15s">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Emotion Breakdown</div>
+          <div class="chart-subtitle">Visual proportion</div>
+        </div>
+        <div class="chart-legend" id="emotionLegend"></div>
+      </div>
+      <div class="chart-wrap" style="height:240px">
+        <canvas id="emotionChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Mood distribution -->
+    <div class="chart-card span-12" style="animation-delay:.2s">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Mood Frequency</div>
+          <div class="chart-subtitle">How you've been feeling before sleep</div>
+        </div>
+      </div>
+      <div class="mood-badges" id="moodBadges"></div>
+    </div>
+  </div>
+
+  <!-- ── Timeline ── -->
+  <div class="section-title">Activity & Trends</div>
+  <div class="charts-grid">
+
+    <!-- Monthly trend line -->
+    <div class="chart-card span-8" style="animation-delay:.25s">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Monthly Dream Activity</div>
+          <div class="chart-subtitle">Dreams recorded per month</div>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div>Dreams</div>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Score trend -->
+    <div class="chart-card span-4" style="animation-delay:.3s">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Avg Dream Score</div>
+          <div class="chart-subtitle">Quality over time</div>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="scoreChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Symbol frequency -->
+    <div class="chart-card span-7" style="animation-delay:.35s">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Top Dream Symbols</div>
+          <div class="chart-subtitle">Recurring archetypes in your dreams</div>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:220px">
+        <canvas id="symbolChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Symbol cloud -->
+    <div class="chart-card span-5" style="animation-delay:.4s">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Symbol Cloud</div>
+          <div class="chart-subtitle">All detected symbols</div>
+        </div>
+      </div>
+      <div class="symbol-cloud-wrap" id="symbolCloud" style="min-height:180px"></div>
+    </div>
+  </div>
+
+</div><!-- /dash-wrap -->
+
+<script>
+/* ════════════════════════════════════════════════
+   CHART DEFAULTS
+   ════════════════════════════════════════════════ */
+Chart.defaults.color = 'rgba(255,255,255,.45)';
+Chart.defaults.font.family = 'inherit';
+Chart.defaults.plugins.legend.display = false;
+Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(10,7,20,.95)';
+Chart.defaults.plugins.tooltip.borderColor = 'rgba(139,92,246,.3)';
+Chart.defaults.plugins.tooltip.borderWidth = 1;
+Chart.defaults.plugins.tooltip.padding = 10;
+Chart.defaults.plugins.tooltip.cornerRadius = 8;
+Chart.defaults.plugins.tooltip.titleColor = '#e2d9f3';
+Chart.defaults.plugins.tooltip.bodyColor = 'rgba(255,255,255,.6)';
+
+const EMOTION_COLORS = {
+  Happy:     '#facc15',
+  Fear:      '#f87171',
+  Adventure: '#fb923c',
+  Mystery:   '#a78bfa',
+  Love:      '#f472b6',
+  Anxiety:   '#60a5fa',
+  Excitement:'#34d399',
+  Sadness:   '#94a3b8'
+};
+const MOOD_ICONS = {
+  peaceful:'🕊️', dark:'🌑', exciting:'⚡', romantic:'💖',
+  mysterious:'🌫️', scary:'👁️', adventurous:'🗺️'
+};
+
+let charts = {};
+
+/* ════════════════════════════════════════════════
+   DATA LOADING
+   ════════════════════════════════════════════════ */
+async function loadDashboard() {
+  try {
+    const [statsRes, dreamsRes] = await Promise.all([
+      fetch('/api/stats'),
+      fetch('/api/dreams')
+    ]);
+    const statsData  = await statsRes.json();
+    const dreamsData = await dreamsRes.json();
+
+    if (!statsData.success) throw new Error(statsData.error);
+
+    const stats  = statsData.data;
+    const dreams = dreamsData.success ? (dreamsData.data || []) : [];
+
+    renderDashboard(stats, dreams);
+
+  } catch(e) {
+    document.getElementById('dashLoading').innerHTML =
+      `<div style="text-align:center;color:#f87171;padding:3rem">
+        <div style="font-size:2rem;margin-bottom:.5rem">⚠️</div>
+        <div>Failed to load analytics: ${e.message}</div>
+      </div>`;
+  }
+}
+
+/* ════════════════════════════════════════════════
+   RENDER ALL
+   ════════════════════════════════════════════════ */
+function renderDashboard(stats, dreams) {
+  document.getElementById('dashLoading').style.display = 'none';
+  document.getElementById('dashContent').style.display = '';
+  document.getElementById('lastUpdated').innerHTML =
+    `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+     Updated ${new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}`;
+
+  renderInsights(stats, dreams);
+  renderStats(stats, dreams);
+  renderEmotionDistribution(stats);
+  renderEmotionChart(stats);
+  renderMoodBadges(stats);
+  renderTrendChart(stats, dreams);
+  renderScoreChart(dreams);
+  renderSymbolChart(stats);
+  renderSymbolCloud(stats);
+}
+
+/* ────────────────── INSIGHTS ────────────────── */
+function renderInsights(stats, dreams) {
+  const rows = [];
+  if (stats.total_dreams > 0) {
+    rows.push(`<span class="pip"></span> You've recorded <strong>${stats.total_dreams}</strong> dream${stats.total_dreams!==1?'s':''}`);
+    if (stats.most_common_emotion) rows.push(`<span class="pip" style="background:#a78bfa"></span> Most felt emotion: <strong>${stats.most_common_emotion}</strong>`);
+    if (stats.average_dream_score) rows.push(`<span class="pip" style="background:#facc15"></span> Average score: <strong>${Math.round(stats.average_dream_score)}/100</strong>`);
+    if (stats.most_common_symbol)  rows.push(`<span class="pip" style="background:#60a5fa"></span> Top symbol: <strong>${stats.most_common_symbol}</strong>`);
+  } else {
+    rows.push(`<span class="pip"></span> No dreams yet — <strong>analyze your first dream</strong> to unlock insights`);
+  }
+  document.getElementById('insightsRow').innerHTML = rows.map((r,i)=>`<div class="insight-pill" style="animation-delay:${i*80}ms">${r}</div>`).join('');
+}
+
+/* ────────────────── STAT CARDS ────────────────── */
+function renderStats(stats, dreams) {
+  const thisMonth = dreams.filter(d => {
+    const date = new Date(d.created_at);
+    const now = new Date();
+    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+  }).length;
+
+  const longestWords = dreams.reduce((max, d) => {
+    const wc = (d.dream_text||'').split(/\s+/).filter(Boolean).length;
+    return wc > max ? wc : max;
+  }, 0);
+
+  const cards = [
+    {
+      icon:'🌙', label:'Total Dreams', value: stats.total_dreams||0,
+      glow:'rgba(139,92,246,.08)', iconBg:'rgba(139,92,246,.15)', iconBorder:'rgba(139,92,246,.3)',
+      accent: thisMonth > 0 ? `+${thisMonth} this month` : null,
+      delay: 0
+    },
+    {
+      icon:'⭐', label:'Avg Dream Score', value: Math.round(stats.average_dream_score||0), unit:'/100',
+      glow:'rgba(250,204,21,.06)', iconBg:'rgba(250,204,21,.12)', iconBorder:'rgba(250,204,21,.25)',
+      accent: stats.average_dream_score >= 70 ? 'Vivid dreams' : null,
+      delay: 60
+    },
+    {
+      icon:'💫', label:'Top Emotion', value: stats.most_common_emotion||'—',
+      glow:'rgba(167,139,250,.06)', iconBg:'rgba(167,139,250,.12)', iconBorder:'rgba(167,139,250,.25)',
+      isText: true, delay: 120
+    },
+    {
+      icon:'🔮', label:'Top Symbol', value: stats.most_common_symbol||'—',
+      glow:'rgba(96,165,250,.06)', iconBg:'rgba(96,165,250,.12)', iconBorder:'rgba(96,165,250,.25)',
+      isText: true, delay: 180
+    },
+    {
+      icon:'📅', label:'Dreams This Month', value: thisMonth,
+      glow:'rgba(52,211,153,.05)', iconBg:'rgba(52,211,153,.1)', iconBorder:'rgba(52,211,153,.22)',
+      delay: 240
+    },
+    {
+      icon:'📝', label:'Longest Dream', value: longestWords||0, unit:' words',
+      glow:'rgba(251,146,60,.05)', iconBg:'rgba(251,146,60,.1)', iconBorder:'rgba(251,146,60,.22)',
+      delay: 300
+    }
+  ];
+
+  document.getElementById('statsGrid').innerHTML = cards.map(c => `
+    <div class="stat-card" style="--glow:${c.glow};animation-delay:${c.delay}ms">
+      <div class="stat-icon" style="--icon-bg:${c.iconBg};--icon-border:${c.iconBorder}">${c.icon}</div>
+      <div class="stat-value">
+        ${c.isText
+          ? `<span style="font-size:1.3rem">${escHtml(String(c.value))}</span>`
+          : `<span class="counter" data-target="${c.value}">0</span><span class="unit">${c.unit||''}</span>`}
+      </div>
+      <div class="stat-label">${c.label}</div>
+      ${c.accent ? `<div class="stat-accent">↑ ${c.accent}</div>` : ''}
+    </div>`).join('');
+
+  // Animated counters
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.counter').forEach(el => {
+      const target = parseInt(el.dataset.target) || 0;
+      let start = 0;
+      const step = target / 40;
+      const timer = setInterval(() => {
+        start = Math.min(start + step, target);
+        el.textContent = Math.round(start);
+        if (start >= target) clearInterval(timer);
+      }, 20);
+    });
+  });
+}
+
+/* ────────────────── EMOTION LIST ─────────────── */
+function renderEmotionDistribution(stats) {
+  const dist = stats.emotion_distribution || {};
+  const total = Object.values(dist).reduce((s,v)=>s+v,0) || 1;
+  const sorted = Object.entries(dist).sort((a,b)=>b[1]-a[1]);
+
+  if (!sorted.length) {
+    document.getElementById('emotionList').innerHTML = `<div class="no-data"><span class="no-data-icon">💤</span>No emotion data yet</div>`;
+    return;
+  }
+
+  document.getElementById('emotionList').innerHTML = sorted.map(([emo,cnt]) => `
+    <div class="emotion-row">
+      <div class="emotion-name">
+        <div class="emo-dot" style="background:${EMOTION_COLORS[emo]||'#a78bfa'}"></div>
+        ${escHtml(emo)}
+      </div>
+      <div class="emo-track">
+        <div class="emo-fill" style="background:${EMOTION_COLORS[emo]||'#a78bfa'};width:0" data-width="${Math.round(cnt/total*100)}%"></div>
+      </div>
+      <div class="emo-count">${cnt}</div>
+    </div>`).join('');
+
+  // Animate bars
+  setTimeout(() => {
+    document.querySelectorAll('.emo-fill').forEach(el => {
+      el.style.width = el.dataset.width;
+    });
+  }, 200);
+}
+
+/* ────────────────── EMOTION DOUGHNUT ─────────── */
+function renderEmotionChart(stats) {
+  const dist = stats.emotion_distribution || {};
+  const labels = Object.keys(dist);
+  const values = Object.values(dist);
+  const colors = labels.map(l => EMOTION_COLORS[l] || '#a78bfa');
+
+  if (!labels.length) {
+    document.getElementById('emotionChart').parentElement.innerHTML = `<div class="no-data"><span class="no-data-icon">💤</span>No data yet</div>`;
+    return;
+  }
+
+  document.getElementById('emotionLegend').innerHTML = labels.slice(0,4).map((l,i) =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${colors[i]}"></div>${l}</div>`
+  ).join('');
+
+  if (charts.emotion) charts.emotion.destroy();
+  charts.emotion = new Chart(document.getElementById('emotionChart'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors.map(c => c + 'bb'),
+        borderColor: colors,
+        borderWidth: 1.5,
+        hoverOffset: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '68%',
+      animation: { animateRotate: true, duration: 1000, easing: 'easeInOutQuart' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.label}: ${ctx.raw} dream${ctx.raw!==1?'s':''}`
+          }
+        }
+      }
+    }
+  });
+}
+
+/* ────────────────── MOOD BADGES ──────────────── */
+function renderMoodBadges(stats) {
+  const dist = stats.mood_distribution || {};
+  if (!Object.keys(dist).length) {
+    document.getElementById('moodBadges').innerHTML = `<div class="no-data" style="grid-column:1/-1"><span class="no-data-icon">🌫️</span>No mood data yet</div>`;
+    return;
+  }
+  const sorted = Object.entries(dist).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('moodBadges').innerHTML = sorted.map(([mood, cnt]) => `
+    <div class="mood-item">
+      <span class="mood-emoji">${MOOD_ICONS[mood]||'💭'}</span>
+      <div class="mood-name">${escHtml(mood)}</div>
+      <div class="mood-count">${cnt}</div>
+    </div>`).join('');
+}
+
+/* ────────────────── MONTHLY TREND ────────────── */
+function renderTrendChart(stats, dreams) {
+  // Build 6-month data from dreams
+  const months = [];
+  const counts = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
+    const cnt = dreams.filter(dr => {
+      const dd = new Date(dr.created_at);
+      return dd.getMonth() === d.getMonth() && dd.getFullYear() === d.getFullYear();
+    }).length;
+    counts.push(cnt);
+  }
+
+  // Fallback to stats monthly_trends if available
+  const trends = stats.monthly_trends;
+  const finalLabels = (trends && trends.labels) ? trends.labels : months;
+  const finalData   = (trends && trends.data)   ? trends.data   : counts;
+
+  if (charts.trend) charts.trend.destroy();
+  charts.trend = new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: finalLabels,
+      datasets: [{
+        data: finalData,
+        borderColor: '#7c3aed',
+        backgroundColor: 'rgba(124,58,237,.12)',
+        fill: true,
+        tension: 0.45,
+        pointBackgroundColor: '#7c3aed',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 1000 },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,.05)' },
+          ticks: { font: { size: 11 } }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,.05)' },
+          beginAtZero: true,
+          ticks: { stepSize: 1, font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+/* ────────────────── SCORE TREND ──────────────── */
+function renderScoreChart(dreams) {
+  const sorted = [...dreams].sort((a,b) => new Date(a.created_at)-new Date(b.created_at)).slice(-12);
+  const labels = sorted.map((_,i) => `#${i+1}`);
+  const scores = sorted.map(d => d.dream_score || 0);
+
+  if (charts.score) charts.score.destroy();
+
+  if (!scores.length) {
+    document.getElementById('scoreChart').parentElement.innerHTML = `<div class="no-data"><span class="no-data-icon">⭐</span>No data yet</div>`;
+    return;
+  }
+
+  charts.score = new Chart(document.getElementById('scoreChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: scores,
+        backgroundColor: scores.map(s =>
+          s >= 80 ? 'rgba(52,211,153,.6)' :
+          s >= 60 ? 'rgba(167,139,250,.6)' :
+          s >= 40 ? 'rgba(251,146,60,.6)' :
+                    'rgba(248,113,113,.6)'
+        ),
+        borderColor: scores.map(s =>
+          s >= 80 ? '#34d399' : s >= 60 ? '#a78bfa' : s >= 40 ? '#fb923c' : '#f87171'
+        ),
+        borderWidth: 1,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 900 },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+        y: {
+          grid: { color: 'rgba(255,255,255,.05)' },
+          min: 0, max: 100,
+          ticks: { stepSize: 25, font: { size: 10 } }
+        }
+      },
+      plugins: {
+        tooltip: {
+          callbacks: { label: ctx => ` Score: ${ctx.raw}/100` }
+        }
+      }
+    }
+  });
+}
+
+/* ────────────────── SYMBOL CHART ─────────────── */
+function renderSymbolChart(stats) {
+  const symDist = stats.symbol_distribution || {};
+  const sorted = Object.entries(symDist).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+  if (!sorted.length) {
+    document.getElementById('symbolChart').parentElement.innerHTML = `<div class="no-data"><span class="no-data-icon">🔮</span>No symbols detected yet</div>`;
+    return;
+  }
+
+  const labels = sorted.map(([s]) => s);
+  const values = sorted.map(([,v]) => v);
+  const palette = ['#7c3aed','#6d28d9','#5b21b6','#4c1d95','#a78bfa','#c4b5fd','#8b5cf6','#9333ea'];
+
+  if (charts.symbol) charts.symbol.destroy();
+  charts.symbol = new Chart(document.getElementById('symbolChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: palette.map(c => c + 'aa'),
+        borderColor: palette,
+        borderWidth: 1,
+        borderRadius: 6,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      animation: { duration: 1000 },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,.05)' },
+          beginAtZero: true,
+          ticks: { stepSize: 1, font: { size: 11 } }
+        },
+        y: {
+          grid: { display: false },
+          ticks: { font: { size: 11 } }
+        }
+      },
+      plugins: {
+        tooltip: {
+          callbacks: { label: ctx => ` Appeared ${ctx.raw} time${ctx.raw!==1?'s':''}` }
+        }
+      }
+    }
+  });
+}
+
+/* ────────────────── SYMBOL CLOUD ─────────────── */
+function renderSymbolCloud(stats) {
+  const symDist = stats.symbol_distribution || {};
+  const sorted = Object.entries(symDist).sort((a,b)=>b[1]-a[1]).slice(0,30);
+  const max = sorted[0]?.[1] || 1;
+
+  if (!sorted.length) {
+    document.getElementById('symbolCloud').innerHTML = `<div class="no-data" style="width:100%"><span class="no-data-icon">🔮</span>No symbols detected yet</div>`;
+    return;
+  }
+
+  document.getElementById('symbolCloud').innerHTML = sorted.map(([sym, cnt], i) => {
+    const size = 0.7 + (cnt / max) * 0.4;
+    return `<div class="symbol-bubble" style="font-size:${size.toFixed(2)}rem;animation-delay:${i*30}ms">
+      ${escHtml(sym)}<span class="symbol-count">${cnt}</span>
+    </div>`;
+  }).join('');
+}
+
+/* ════════════════════════════════════════════════
+   UTILITIES
+   ════════════════════════════════════════════════ */
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ════════════════════════════════════════════════
+   INIT
+   ════════════════════════════════════════════════ */
+loadDashboard();
+</script>
+{% endblock %}

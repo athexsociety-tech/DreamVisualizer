@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+{% set active_page = 'visualization' %}
+{% block title %}Dream Visualization — Dream Visualizer AI{% endblock %}
+
+{% block extra_head %}
+<style>
+.viz-page {
+  min-height: 100vh;
+  padding: calc(var(--nav-h) + 2.5rem) clamp(1.25rem,4vw,3rem) clamp(3rem,6vw,5rem);
+  max-width: 1200px; margin: 0 auto;
+}
+
+/* ── Image hero ─────────────────────────────────────────────────────── */
+.image-stage {
+  position: relative; border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border-2);
+  box-shadow: var(--shadow-float);
+  margin-bottom: 1.75rem;
+}
+.dream-image {
+  width: 100%; aspect-ratio: 4/3; object-fit: cover;
+  display: block; transition: transform .6s ease;
+}
+.image-stage:hover .dream-image { transform: scale(1.02); }
+
+.image-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(10,10,20,.85) 0%, transparent 50%);
+  pointer-events: none;
+}
+.image-overlay-top {
+  position: absolute; inset: 0;
+  background: linear-gradient(to bottom, rgba(10,10,20,.4) 0%, transparent 30%);
+  pointer-events: none;
+}
+
+.image-caption {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  padding: 1.5rem 2rem; z-index: 1;
+}
+.image-title {
+  font-family: var(--font-display); font-size: clamp(1.1rem,3vw,1.8rem);
+  margin-bottom: .35rem; color: rgba(255,255,255,.95);
+}
+.image-meta {
+  font-family: var(--font-mono); font-size: .7rem; letter-spacing: .1em;
+  color: rgba(255,255,255,.45);
+}
+
+/* Fullscreen button */
+.fullscreen-btn {
+  position: absolute; top: 1rem; right: 1rem; z-index: 2;
+  width: 40px; height: 40px; border-radius: 10px;
+  background: rgba(10,10,20,.7); backdrop-filter: blur(8px);
+  border: 1px solid var(--border); color: rgba(255,255,255,.7);
+  display: grid; place-items: center; font-size: .85rem;
+  transition: var(--transition); cursor: pointer;
+}
+.fullscreen-btn:hover { background: rgba(99,102,241,.3); color: #fff; }
+
+/* Loading skeleton */
+.image-skeleton {
+  width: 100%; aspect-ratio: 4/3;
+  background: linear-gradient(90deg,
+    rgba(255,255,255,.04) 0%,
+    rgba(255,255,255,.08) 50%,
+    rgba(255,255,255,.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: var(--radius-xl);
+  display: flex; align-items: center; justify-content: center;
+}
+.skeleton-text {
+  font-family: var(--font-mono); font-size: .75rem; letter-spacing: .15em;
+  color: rgba(255,255,255,.2);
+}
+
+/* ── Action row ─────────────────────────────────────────────────────── */
+.viz-actions {
+  display: flex; flex-wrap: wrap; gap: .85rem;
+  margin-bottom: 2rem; align-items: center;
+}
+
+/* ── Info panels ────────────────────────────────────────────────────── */
+.viz-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;
+}
+@media (max-width: 760px) { .viz-grid { grid-template-columns: 1fr; } }
+
+.viz-card {
+  padding: 1.75rem; border-radius: var(--radius-lg);
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(16px);
+}
+.viz-card-full { grid-column: 1 / -1; }
+.viz-card-header {
+  display: flex; align-items: center; gap: .7rem;
+  margin-bottom: 1.1rem;
+}
+.viz-card-icon {
+  width: 36px; height: 36px; border-radius: 9px;
+  background: rgba(99,102,241,.12); border: 1px solid rgba(99,102,241,.2);
+  display: grid; place-items: center; font-size: .85rem; color: #a5b4fc;
+}
+.viz-card-title { font-family: var(--font-display); font-size: .95rem; font-weight: 600; }
+
+.prompt-box {
+  font-family: var(--font-mono); font-size: .78rem; line-height: 1.7;
+  color: rgba(255,255,255,.6); background: rgba(255,255,255,.03);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1.1rem; word-break: break-word;
+}
+
+/* Style badges */
+.style-list { display: flex; flex-wrap: wrap; gap: .6rem; }
+.style-tag {
+  padding: .35rem .85rem; border-radius: 99px;
+  font-size: .75rem; font-weight: 500;
+  background: rgba(139,92,246,.1); border: 1px solid rgba(139,92,246,.25);
+  color: #c4b5fd;
+}
+
+/* ── Lightbox ────────────────────────────────────────────────────────── */
+.lightbox {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,.92); backdrop-filter: blur(12px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+  opacity: 0; pointer-events: none; transition: opacity .3s;
+}
+.lightbox.active { opacity: 1; pointer-events: all; }
+.lightbox img { max-width: 90vw; max-height: 88vh; border-radius: var(--radius); box-shadow: var(--shadow-float); }
+.lightbox-close {
+  position: absolute; top: 1.5rem; right: 1.5rem;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(255,255,255,.08); border: 1px solid var(--border);
+  color: rgba(255,255,255,.8); font-size: 1rem;
+  display: grid; place-items: center; cursor: pointer;
+  transition: var(--transition);
+}
+.lightbox-close:hover { background: rgba(244,63,94,.3); }
+
+/* ── Empty state ────────────────────────────────────────────────────── */
+.empty-state {
+  max-width: 480px; margin: 6rem auto;
+  text-align: center; padding: 3rem;
+  border-radius: var(--radius-xl);
+  background: rgba(255,255,255,.03); border: 1px solid var(--border);
+}
+.empty-state-icon { font-size: 3.5rem; margin-bottom: 1rem; opacity: .5; }
+.empty-state-title { font-family: var(--font-display); font-size: 1.4rem; margin-bottom: .75rem; }
+.empty-state-sub { color: rgba(255,255,255,.45); font-size: .9rem; margin-bottom: 1.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" role="dialog" aria-label="Fullscreen dream image">
+  <img src="" alt="Dream visualization" id="lightbox-img" />
+  <button class="lightbox-close" id="lightbox-close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+</div>
+
+<!-- Empty state -->
+<div id="viz-empty" class="empty-state" style="display:none">
+  <div class="empty-state-icon">🎨</div>
+  <h2 class="empty-state-title">No Dream Art Yet</h2>
+  <p class="empty-state-sub">Analyse a dream first, then click "Generate Dream Art" to create your visualization.</p>
+  <a href="/" class="btn btn-primary"><i class="fa-solid fa-arrow-left"></i> Go to Home</a>
+</div>
+
+<!-- Main content -->
+<div id="viz-content" class="viz-page" style="display:none">
+  <a href="/analysis" class="back-link" style="display:inline-flex;align-items:center;gap:.5rem;font-size:.82rem;color:rgba(255,255,255,.45);margin-bottom:1.25rem;transition:var(--transition);">
+    <i class="fa-solid fa-arrow-left"></i> Back to Analysis
+  </a>
+
+  <div class="section-label" style="margin-bottom:.75rem;"><i class="fa-solid fa-palette"></i> Dream Visualization</div>
+  <h1 id="viz-title" style="font-family:var(--font-display);font-size:clamp(1.5rem,4vw,2.2rem);margin-bottom:1.75rem;">Dream Artwork</h1>
+
+  <!-- Image stage -->
+  <div class="image-stage fade-up" id="image-stage">
+    <div class="image-skeleton" id="image-skeleton">
+      <span class="skeleton-text">RENDERING DREAM…</span>
+    </div>
+    <img class="dream-image" id="dream-image" src="" alt="AI dream artwork" style="display:none;" />
+    <div class="image-overlay" aria-hidden="true"></div>
+    <div class="image-overlay-top" aria-hidden="true"></div>
+    <div class="image-caption">
+      <div class="image-title" id="image-title-overlay">—</div>
+      <div class="image-meta" id="image-meta">AI GENERATED · DREAM VISUALIZER</div>
+    </div>
+    <button class="fullscreen-btn" id="fullscreen-btn" aria-label="View fullscreen">
+      <i class="fa-solid fa-expand"></i>
+    </button>
+  </div>
+
+  <!-- Actions -->
+  <div class="viz-actions fade-up" style="animation-delay:.15s">
+    <button class="btn btn-primary" id="download-btn">
+      <i class="fa-solid fa-download"></i> Download
+    </button>
+    <button class="btn btn-ghost" id="regenerate-btn">
+      <i class="fa-solid fa-rotate"></i> Regenerate
+    </button>
+    <button class="btn btn-ghost" id="share-btn">
+      <i class="fa-solid fa-share-nodes"></i> Share Prompt
+    </button>
+    <button class="btn btn-ghost" onclick="window.location.href='/journal'">
+      <i class="fa-solid fa-book-open"></i> View Journal
+    </button>
+  </div>
+
+  <!-- Info panels -->
+  <div class="viz-grid">
+    <div class="viz-card viz-card-full fade-up" style="animation-delay:.25s">
+      <div class="viz-card-header">
+        <div class="viz-card-icon"><i class="fa-solid fa-terminal"></i></div>
+        <div class="viz-card-title">Generated Image Prompt</div>
+      </div>
+      <div class="prompt-box" id="prompt-box">—</div>
+    </div>
+
+    <div class="viz-card fade-up" style="animation-delay:.35s">
+      <div class="viz-card-header">
+        <div class="viz-card-icon"><i class="fa-solid fa-wand-sparkles"></i></div>
+        <div class="viz-card-title">Style Profile</div>
+      </div>
+      <div class="style-list" id="style-list">—</div>
+    </div>
+
+    <div class="viz-card fade-up" style="animation-delay:.45s">
+      <div class="viz-card-header">
+        <div class="viz-card-icon"><i class="fa-solid fa-info-circle"></i></div>
+        <div class="viz-card-title">Dream Details</div>
+      </div>
+      <div id="dream-details" style="display:flex;flex-direction:column;gap:.65rem;"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const STYLE_MAP = {
+  Happy:'Fantasy', Fear:'Nightmare', Adventure:'Epic Adventure',
+  Mystery:'Atmospheric Mystery', Love:'Soft Romance',
+  Anxiety:'Dark Surrealism', Excitement:'Cinematic Action', Sadness:'Melancholic Impressionism'
+};
+
+window.addEventListener('DOMContentLoaded', () => {
+  const raw = sessionStorage.getItem('dreamAnalysis');
+  if (!raw) {
+    document.getElementById('viz-empty').style.display = 'block';
+    return;
+  }
+  const d = JSON.parse(raw);
+
+  if (!d.image_url) {
+    document.getElementById('viz-empty').style.display = 'block';
+    return;
+  }
+
+  document.getElementById('viz-content').style.display = 'block';
+  renderViz(d);
+});
+
+function renderViz(d) {
+  document.getElementById('viz-title').textContent = d.title || 'Dream Artwork';
+  document.getElementById('image-title-overlay').textContent = d.title || 'Dream Visualization';
+  document.getElementById('image-meta').textContent = (d.emotion || '').toUpperCase() + ' · AI GENERATED · DREAM VISUALIZER';
+
+  // Load image
+  const img = document.getElementById('dream-image');
+  const skel = document.getElementById('image-skeleton');
+  img.onload = () => {
+    skel.style.display = 'none';
+    img.style.display = 'block';
+  };
+  img.onerror = () => {
+    skel.innerHTML = '<span class="skeleton-text">IMAGE UNAVAILABLE</span>';
+  };
+  img.src = d.image_url;
+
+  // Prompt
+  document.getElementById('prompt-box').textContent = d.image_prompt || '—';
+
+  // Style tags
+  const styleName = STYLE_MAP[d.emotion] || 'Dreamlike';
+  const tags = [styleName, 'Cinematic', 'Ultra-detailed', 'AI Art'];
+  document.getElementById('style-list').innerHTML =
+    tags.map(t => `<span class="style-tag">${t}</span>`).join('');
+
+  // Dream details
+  const details = [
+    { label: 'Emotion',     value: d.emotion || '—' },
+    { label: 'Confidence',  value: Math.round((d.confidence||0)*100) + '%' },
+    { label: 'Dream Score', value: Math.round(d.dream_score||0) + '/100' },
+    { label: 'Symbols',     value: (d.symbols||[]).length + ' detected' },
+  ];
+  document.getElementById('dream-details').innerHTML = details.map(det => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:.6rem 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:.82rem;color:rgba(255,255,255,.45);">${det.label}</span>
+      <span style="font-size:.85rem;font-weight:500;">${det.value}</span>
+    </div>
+  `).join('');
+}
+
+/* ── Fullscreen ──────────────────────────────────────────────────────── */
+const lightbox = document.getElementById('lightbox');
+const lbImg    = document.getElementById('lightbox-img');
+document.getElementById('fullscreen-btn').addEventListener('click', () => {
+  const src = document.getElementById('dream-image').src;
+  if (!src) return;
+  lbImg.src = src;
+  lightbox.classList.add('active');
+  document.body.style.overflow = 'hidden';
+});
+document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
+lightbox.addEventListener('click', e => { if (e.target === lightbox) closeLightbox(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+function closeLightbox() {
+  lightbox.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+/* ── Download ────────────────────────────────────────────────────────── */
+document.getElementById('download-btn').addEventListener('click', () => {
+  const raw = sessionStorage.getItem('dreamAnalysis');
+  if (!raw) return;
+  const d = JSON.parse(raw);
+  if (!d.image_url) { showToast('No image to download.', 'error'); return; }
+  const a = document.createElement('a');
+  a.href = d.image_url;
+  a.download = (d.title || 'dream').replace(/\s+/g, '_') + '.jpg';
+  a.target = '_blank';
+  a.click();
+  showToast('Download started!', 'success');
+});
+
+/* ── Share / copy prompt ─────────────────────────────────────────────── */
+document.getElementById('share-btn').addEventListener('click', async () => {
+  const raw = sessionStorage.getItem('dreamAnalysis');
+  if (!raw) return;
+  const d = JSON.parse(raw);
+  const text = d.image_prompt || d.summary || '';
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('Prompt copied to clipboard!', 'success');
+  } catch {
+    showToast('Could not copy — try manually.', 'error');
+  }
+});
+
+/* ── Regenerate ──────────────────────────────────────────────────────── */
+document.getElementById('regenerate-btn').addEventListener('click', async () => {
+  const raw = sessionStorage.getItem('dreamAnalysis');
+  if (!raw) return;
+  const d = JSON.parse(raw);
+
+  const btn = document.getElementById('regenerate-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…';
+  document.getElementById('dream-image').style.display = 'none';
+  document.getElementById('image-skeleton').style.display = 'flex';
+
+  try {
+    const res = await fetch('/api/generate-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dream_text: d.dream_text || d.summary || '', mood: d.emotion || 'Mystery' })
+    });
+    const j = await res.json();
+    if (!j.success) throw new Error(j.error);
+
+    const updated = { ...d, image_url: j.data.image_url, image_prompt: j.data.prompt };
+    sessionStorage.setItem('dreamAnalysis', JSON.stringify(updated));
+
+    showToast('New dream art generated!', 'success');
+    renderViz(updated);
+
+  } catch (err) {
+    showToast(err.message || 'Regeneration failed.', 'error');
+    document.getElementById('image-skeleton').style.display = 'none';
+    document.getElementById('dream-image').style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Regenerate';
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,481 @@
+{% extends "base.html" %}
+{% set active_page = 'analysis' %}
+{% block title %}Dream Analysis — Dream Visualizer AI{% endblock %}
+
+{% block extra_head %}
+<style>
+.analysis-hero {
+  padding: calc(var(--nav-h) + 2.5rem) clamp(1.25rem,4vw,3rem) 2rem;
+  max-width: 1200px; margin: 0 auto;
+}
+.back-link {
+  display: inline-flex; align-items: center; gap: .5rem;
+  font-size: .82rem; color: rgba(255,255,255,.45);
+  transition: var(--transition); margin-bottom: 1.5rem;
+}
+.back-link:hover { color: var(--indigo); }
+
+/* ── Emotion hero card ──────────────────────────────────────────────── */
+.emotion-hero {
+  padding: 2.5rem; border-radius: var(--radius-xl);
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border-2);
+  backdrop-filter: blur(20px);
+  display: flex; align-items: center; gap: 2rem;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+  position: relative; overflow: hidden;
+}
+.emotion-hero::before {
+  content: '';
+  position: absolute; top: -80px; right: -80px;
+  width: 280px; height: 280px; border-radius: 50%;
+  background: radial-gradient(circle, var(--emotion-color, rgba(99,102,241,.3)) 0%, transparent 70%);
+  pointer-events: none;
+}
+.emotion-icon-wrap {
+  width: 100px; height: 100px; border-radius: 24px;
+  background: rgba(99,102,241,.1); border: 1px solid rgba(99,102,241,.2);
+  display: grid; place-items: center; font-size: 2.8rem;
+  flex-shrink: 0;
+  animation: float 4s ease-in-out infinite;
+}
+.emotion-details { flex: 1; min-width: 220px; }
+.emotion-name {
+  font-family: var(--font-display); font-size: 2rem; font-weight: 700;
+  margin-bottom: .4rem;
+}
+.emotion-confidence-label {
+  font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em;
+  color: rgba(255,255,255,.4); text-transform: uppercase; margin-bottom: .75rem;
+}
+.confidence-bar-wrap { max-width: 320px; }
+.confidence-bar-row { display: flex; justify-content: space-between; margin-bottom: .4rem; }
+.confidence-pct {
+  font-family: var(--font-display); font-size: 1.1rem;
+  color: var(--indigo);
+}
+
+.score-ring-wrap { text-align: center; }
+.score-ring {
+  width: 110px; height: 110px;
+  position: relative; display: inline-flex;
+  align-items: center; justify-content: center;
+}
+.score-ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.score-ring circle { fill: none; stroke-width: 7; }
+.ring-bg   { stroke: rgba(255,255,255,.08); }
+.ring-fill {
+  stroke: url(#ringGrad);
+  stroke-linecap: round;
+  stroke-dasharray: 314;
+  stroke-dashoffset: 314;
+  transition: stroke-dashoffset 1.4s cubic-bezier(.4,0,.2,1);
+}
+.score-val {
+  font-family: var(--font-display); font-size: 1.6rem; font-weight: 700;
+  line-height: 1; z-index: 1;
+}
+.score-label {
+  font-family: var(--font-mono); font-size: .62rem; letter-spacing: .1em;
+  color: rgba(255,255,255,.35); margin-top: .3rem;
+}
+
+/* ── Content grid ───────────────────────────────────────────────────── */
+.analysis-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  max-width: 1200px; margin: 0 auto;
+  padding: 0 clamp(1.25rem,4vw,3rem) clamp(3rem,6vw,5rem);
+}
+@media (max-width: 900px) { .analysis-grid { grid-template-columns: 1fr; } }
+
+.a-card {
+  padding: 1.75rem; border-radius: var(--radius-lg);
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(16px);
+  transition: var(--transition);
+}
+.a-card:hover { border-color: var(--border-2); transform: translateY(-3px); box-shadow: var(--shadow-card); }
+.a-card-full { grid-column: 1 / -1; }
+
+.a-card-header {
+  display: flex; align-items: center; gap: .75rem;
+  margin-bottom: 1.25rem;
+}
+.a-card-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: rgba(99,102,241,.12); border: 1px solid rgba(99,102,241,.2);
+  display: grid; place-items: center; font-size: .9rem; color: #a5b4fc;
+  flex-shrink: 0;
+}
+.a-card-title {
+  font-family: var(--font-display); font-size: 1rem; font-weight: 600;
+}
+
+/* Summary */
+.summary-text {
+  font-size: .95rem; line-height: 1.75; color: rgba(255,255,255,.75);
+  font-style: italic;
+}
+
+/* Interpretation */
+.interpretation-text {
+  font-size: .9rem; line-height: 1.85; color: rgba(255,255,255,.7);
+}
+
+/* Symbols */
+.symbols-grid {
+  display: flex; flex-wrap: wrap; gap: .6rem;
+}
+.symbol-chip {
+  display: flex; align-items: center; gap: .4rem;
+  padding: .45rem .9rem; border-radius: 99px;
+  background: rgba(139,92,246,.1); border: 1px solid rgba(139,92,246,.25);
+  font-size: .78rem; font-weight: 500; color: #c4b5fd;
+  transition: var(--transition); cursor: default;
+}
+.symbol-chip:hover {
+  background: rgba(139,92,246,.2);
+  transform: translateY(-2px);
+}
+.symbol-chip i { font-size: .65rem; }
+
+/* Patterns */
+.pattern-list { display: flex; flex-direction: column; gap: .65rem; }
+.pattern-item {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .7rem 1rem; border-radius: 10px;
+  background: rgba(255,255,255,.04); border: 1px solid var(--border);
+  font-size: .85rem;
+}
+.pattern-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--grad-primary); flex-shrink: 0;
+}
+
+/* ── Action bar ─────────────────────────────────────────────────────── */
+.action-bar {
+  display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;
+  max-width: 1200px; margin: 0 auto;
+  padding: 0 clamp(1.25rem,4vw,3rem) 1.5rem;
+}
+
+/* ── Empty state ────────────────────────────────────────────────────── */
+.empty-state {
+  max-width: 480px; margin: 6rem auto;
+  text-align: center; padding: 3rem;
+  border-radius: var(--radius-xl);
+  background: rgba(255,255,255,.03); border: 1px solid var(--border);
+}
+.empty-state-icon { font-size: 3.5rem; margin-bottom: 1rem; opacity: .5; }
+.empty-state-title { font-family: var(--font-display); font-size: 1.4rem; margin-bottom: .75rem; }
+.empty-state-sub { color: rgba(255,255,255,.45); font-size: .9rem; margin-bottom: 1.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="analysis-empty" class="empty-state" style="display:none">
+  <div class="empty-state-icon">🌙</div>
+  <h2 class="empty-state-title">No Analysis Found</h2>
+  <p class="empty-state-sub">It looks like you haven't analysed a dream yet. Head back to the home page to get started.</p>
+  <a href="/" class="btn btn-primary"><i class="fa-solid fa-arrow-left"></i> Analyse a Dream</a>
+</div>
+
+<div id="analysis-content" style="display:none">
+  <!-- Back -->
+  <div class="analysis-hero">
+    <a href="/" class="back-link"><i class="fa-solid fa-arrow-left"></i> Back to Home</a>
+    <div class="section-label"><i class="fa-solid fa-microscope"></i> Analysis Complete</div>
+    <h1 id="analysis-dream-title" style="font-family:var(--font-display);font-size:clamp(1.5rem,4vw,2.2rem);margin-bottom:.5rem;">Dream Analysis</h1>
+
+    <!-- Emotion hero card -->
+    <div class="emotion-hero" id="emotion-hero">
+      <div class="emotion-icon-wrap" id="emotion-icon">🌀</div>
+      <div class="emotion-details">
+        <div class="emotion-name" id="emotion-name">—</div>
+        <div class="emotion-confidence-label">Confidence Score</div>
+        <div class="confidence-bar-wrap">
+          <div class="confidence-bar-row">
+            <span style="font-size:.8rem;color:rgba(255,255,255,.5)">Emotional intensity</span>
+            <span class="confidence-pct" id="confidence-pct">—%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="confidence-bar" data-value="0"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="score-ring-wrap">
+        <div class="score-ring">
+          <svg viewBox="0 0 110 110" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%"   stop-color="#6366f1"/>
+                <stop offset="100%" stop-color="#f43f5e"/>
+              </linearGradient>
+            </defs>
+            <circle class="ring-bg"   cx="55" cy="55" r="50" />
+            <circle class="ring-fill" cx="55" cy="55" r="50" id="ring-fill" />
+          </svg>
+          <div>
+            <div class="score-val" id="score-val">—</div>
+          </div>
+        </div>
+        <div class="score-label">DREAM SCORE</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action bar -->
+  <div class="action-bar">
+    <button class="btn btn-primary" id="save-btn">
+      <i class="fa-solid fa-floppy-disk"></i> Save to Journal
+    </button>
+    <button class="btn btn-ghost" id="visualize-btn">
+      <i class="fa-solid fa-image"></i> Generate Dream Art
+    </button>
+    <button class="btn btn-ghost" id="new-btn" onclick="window.location.href='/'">
+      <i class="fa-solid fa-plus"></i> New Dream
+    </button>
+  </div>
+
+  <!-- Analysis cards -->
+  <div class="analysis-grid">
+    <!-- Summary -->
+    <div class="a-card a-card-full fade-up" style="animation-delay:.1s">
+      <div class="a-card-header">
+        <div class="a-card-icon"><i class="fa-solid fa-scroll"></i></div>
+        <div class="a-card-title">Dream Summary</div>
+      </div>
+      <p class="summary-text" id="summary-text">—</p>
+    </div>
+
+    <!-- Interpretation -->
+    <div class="a-card a-card-full fade-up" style="animation-delay:.2s">
+      <div class="a-card-header">
+        <div class="a-card-icon"><i class="fa-solid fa-brain"></i></div>
+        <div class="a-card-title">Psychological Interpretation</div>
+      </div>
+      <p class="interpretation-text" id="interpretation-text">—</p>
+    </div>
+
+    <!-- Symbols -->
+    <div class="a-card fade-up" style="animation-delay:.3s">
+      <div class="a-card-header">
+        <div class="a-card-icon"><i class="fa-solid fa-eye"></i></div>
+        <div class="a-card-title">Detected Symbols</div>
+      </div>
+      <div class="symbols-grid" id="symbols-grid">
+        <span class="text-muted" style="font-size:.85rem">No symbols detected</span>
+      </div>
+    </div>
+
+    <!-- Recurring patterns -->
+    <div class="a-card fade-up" style="animation-delay:.4s">
+      <div class="a-card-header">
+        <div class="a-card-icon"><i class="fa-solid fa-rotate"></i></div>
+        <div class="a-card-title">Recurring Patterns</div>
+      </div>
+      <div class="pattern-list" id="pattern-list">
+        <span class="text-muted" style="font-size:.85rem">No patterns detected</span>
+      </div>
+    </div>
+
+    <!-- Emotion breakdown -->
+    <div class="a-card a-card-full fade-up" style="animation-delay:.5s">
+      <div class="a-card-header">
+        <div class="a-card-icon"><i class="fa-solid fa-chart-bar"></i></div>
+        <div class="a-card-title">Emotion Breakdown</div>
+      </div>
+      <div id="emotion-bars" style="display:flex;flex-direction:column;gap:.85rem;"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const EMOTION_ICONS = {
+  Happy:'😊', Fear:'😨', Adventure:'🌋', Mystery:'🌀',
+  Love:'💖', Anxiety:'😰', Excitement:'⚡', Sadness:'💧'
+};
+const EMOTION_COLORS = {
+  Happy:'rgba(245,158,11,.3)', Fear:'rgba(139,92,246,.3)',
+  Adventure:'rgba(16,185,129,.3)', Mystery:'rgba(6,182,212,.3)',
+  Love:'rgba(244,63,94,.3)', Anxiety:'rgba(249,115,22,.3)',
+  Excitement:'rgba(234,179,8,.3)', Sadness:'rgba(100,116,139,.3)'
+};
+
+/* ── Load & render analysis ──────────────────────────────────────────── */
+window.addEventListener('DOMContentLoaded', () => {
+  const raw = sessionStorage.getItem('dreamAnalysis');
+  if (!raw) {
+    document.getElementById('analysis-empty').style.display = 'block';
+    return;
+  }
+  document.getElementById('analysis-content').style.display = 'block';
+
+  const d = JSON.parse(raw);
+  renderAnalysis(d);
+});
+
+function renderAnalysis(d) {
+  const emotion = d.emotion || 'Mystery';
+
+  // Title
+  document.getElementById('analysis-dream-title').textContent = d.title || 'Dream Analysis';
+
+  // Emotion hero
+  document.getElementById('emotion-icon').textContent = EMOTION_ICONS[emotion] || '🌀';
+  document.getElementById('emotion-name').textContent = emotion;
+  document.getElementById('emotion-hero').style.setProperty('--emotion-color', EMOTION_COLORS[emotion] || 'rgba(99,102,241,.3)');
+
+  // Confidence bar
+  const conf = Math.round((d.confidence || 0) * 100);
+  document.getElementById('confidence-pct').textContent = conf + '%';
+  const bar = document.getElementById('confidence-bar');
+  bar.dataset.value = conf;
+  setTimeout(() => { bar.style.width = conf + '%'; }, 300);
+
+  // Score ring
+  const score = Math.round(d.dream_score || 0);
+  document.getElementById('score-val').textContent = score;
+  const circumference = 314;
+  const offset = circumference - (score / 100) * circumference;
+  const ring = document.getElementById('ring-fill');
+  setTimeout(() => { ring.style.strokeDashoffset = offset; }, 400);
+
+  // Summary & interpretation
+  document.getElementById('summary-text').textContent = d.summary || '—';
+  document.getElementById('interpretation-text').textContent = d.interpretation || '—';
+
+  // Symbols
+  const sg = document.getElementById('symbols-grid');
+  const symbols = d.symbols || [];
+  if (symbols.length) {
+    sg.innerHTML = symbols.map(s =>
+      `<div class="symbol-chip"><i class="fa-solid fa-gem"></i>${s}</div>`
+    ).join('');
+  }
+
+  // Patterns
+  const pl = document.getElementById('pattern-list');
+  const patterns = d.recurring_patterns || [];
+  if (patterns.length) {
+    pl.innerHTML = patterns.map(p =>
+      `<div class="pattern-item"><div class="pattern-dot"></div>${p}</div>`
+    ).join('');
+  }
+
+  // Emotion bars (fake breakdown for visual richness)
+  renderEmotionBars(emotion, d.confidence || 0);
+}
+
+function renderEmotionBars(primary, primaryConf) {
+  const emotions = Object.keys(EMOTION_ICONS);
+  const container = document.getElementById('emotion-bars');
+  // Give remaining emotions small random values for visual context
+  const bars = emotions.map(e => ({
+    name: e,
+    value: e === primary ? Math.round(primaryConf * 100)
+                         : Math.max(3, Math.round(Math.random() * (100 - primaryConf * 100) / emotions.length))
+  }));
+  bars.sort((a,b) => b.value - a.value);
+
+  container.innerHTML = bars.map(b => `
+    <div style="display:flex;align-items:center;gap:1rem;">
+      <span style="width:90px;font-size:.8rem;color:rgba(255,255,255,.6);flex-shrink:0;">
+        ${EMOTION_ICONS[b.name]} ${b.name}
+      </span>
+      <div class="progress-track" style="flex:1">
+        <div class="progress-fill" data-value="${b.value}" style="background:${b.name===primary?'var(--grad-primary)':'rgba(255,255,255,.15)'}"></div>
+      </div>
+      <span style="width:36px;text-align:right;font-family:var(--font-mono);font-size:.75rem;color:rgba(255,255,255,.4);">${b.value}%</span>
+    </div>
+  `).join('');
+
+  // Trigger bars
+  requestAnimationFrame(() => {
+    container.querySelectorAll('.progress-fill').forEach(f => {
+      setTimeout(() => { f.style.width = f.dataset.value + '%'; }, 200);
+    });
+  });
+}
+
+/* ── Save dream ──────────────────────────────────────────────────────── */
+document.getElementById('save-btn').addEventListener('click', async () => {
+  const raw = sessionStorage.getItem('dreamAnalysis');
+  if (!raw) return;
+  const d = JSON.parse(raw);
+
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
+
+  try {
+    const res = await fetch('/api/save-dream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title:          d.title || 'Untitled Dream',
+        dream_text:     d.dream_text || '',
+        mood:           d.emotion   || 'Mystery',
+        emotion_score:  d.confidence || 0,
+        summary:        d.summary   || '',
+        interpretation: d.interpretation || '',
+        symbols:        d.symbols   || [],
+        dream_score:    d.dream_score || 0,
+        image_url:      d.image_url || ''
+      })
+    });
+    const j = await res.json();
+    if (!j.success) throw new Error(j.error);
+
+    showToast('Dream saved to your journal!', 'success');
+    btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Saved';
+    btn.classList.add('btn-ghost');
+    btn.classList.remove('btn-primary');
+
+    // Store the new id back into session
+    const updated = { ...d, saved_id: j.data.id };
+    sessionStorage.setItem('dreamAnalysis', JSON.stringify(updated));
+
+  } catch (err) {
+    showToast(err.message || 'Save failed.', 'error');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save to Journal';
+  }
+});
+
+/* ── Visualize ───────────────────────────────────────────────────────── */
+document.getElementById('visualize-btn').addEventListener('click', async () => {
+  const raw = sessionStorage.getItem('dreamAnalysis');
+  if (!raw) return;
+  const d = JSON.parse(raw);
+
+  showLoading('GENERATING DREAM ART…');
+
+  try {
+    const res = await fetch('/api/generate-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dream_text: d.dream_text || d.summary || '', mood: d.emotion || 'Mystery' })
+    });
+    const j = await res.json();
+    if (!j.success) throw new Error(j.error);
+
+    const updated = { ...d, image_url: j.data.image_url, image_prompt: j.data.prompt };
+    sessionStorage.setItem('dreamAnalysis', JSON.stringify(updated));
+    hideLoading();
+    window.location.href = '/visualization';
+
+  } catch (err) {
+    hideLoading();
+    showToast(err.message || 'Image generation failed.', 'error');
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,12 @@
+# Dream Visualizer AI - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# ── Web framework ──────────────────────────────────────────────────────────────
+Flask==3.0.3
+flask-cors==4.0.1
+
+# ── WSGI server (production) ───────────────────────────────────────────────────
+gunicorn==22.0.0
+
+# ── Utilities ──────────────────────────────────────────────────────────────────
+python-dotenv==1.0.1       # .env file support
